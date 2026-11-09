@@ -4,8 +4,8 @@
 不对就改，直到完成。和 Claude Code / Cursor / OpenHands 是**同一个思想**。
 
 > **这个仓库的重点不是"能改代码"，而是"能证明自己的优化到底有没有用"。**
-> 26 个自动判卷任务 + 双向校验 + 变异测试 + 配对消融 + 难度扫描 + prompt 健康审计，
-> 用它推翻了 6 个自己的假设，最后留下的是**边界结论**而不是漂亮百分比。
+> 21 个注册任务（另有 5 个抽样对照 + 1 个留出任务）+ 双向校验 + 变异测试 + 配对消融
+> + prompt 健康审计，用它推翻了 6 个自己的假设，最后留下的是**边界结论**而不是漂亮百分比。
 > 详细实验记录见 [`eval/ABLATION.md`](eval/ABLATION.md)。
 
 > 演进：项目**最早是纯自实现**（`agent_handwritten.py`，`while` 循环 + 手写消息协议，
@@ -16,14 +16,22 @@
 ## 运行
 
 ```bash
-cd cli_coding_agent
-pip install langgraph langchain-openai
+pip install -r requirements.txt
+cp .env.example .env          # 填入 LLM_API_KEY（DeepSeek / 硅基流动 / OpenAI 均可）
 
-# LLM 由 agent.py 内部从环境变量构造（LLM_API_KEY / LLM_BASE_URL / LLM_MODEL_ID，
-# 自动回退读 SQLPilot/.env；DeepSeek / 硅基流动等 OpenAI 兼容端点都行）
 python cli.py "在沙箱里创建 hello.py，定义 add(a,b) 返回 a+b，并运行打印 add(2,3)" \
     --workdir ./sandbox_example --stall
 ```
+
+验证环境是否正常（不烧额度的离线部分）：
+
+```bash
+python -m pytest tests -q          # 88 个单测
+python eval/selftest_tasks.py      # 21 个任务可解性自检（会真调 LLM）
+```
+
+> 依赖只有一个 OpenAI 兼容端点 + `langgraph`；`.env` 查找顺序见 `llm_env.py`
+> （`MINICODE_ENV_FILE` → 本目录 `.env` → 当前目录 `.env`）。
 
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
