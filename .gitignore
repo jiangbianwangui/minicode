@@ -1,0 +1,20 @@
+# 本地配置 / 密钥 —— 绝不入库
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 评测产物：每次运行都会生成，几十 MB，且是可复现的中间结果
+eval/workspaces/
+eval/EVAL*.md
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

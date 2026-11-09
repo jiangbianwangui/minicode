@@ -1,0 +1,20 @@
+# MiniCode 依赖（Python 3.11+）
+#
+# 本机实测版本（2026-11-09）：
+#   langgraph 1.2.11 / langchain-core 1.6.3 / langchain-openai 1.6.2
+#   pytest 9.1.1 / numpy 1.26.4 / scipy 1.17.0 / python-dotenv 1.2.3
+#
+# 安装：pip install -r requirements.txt
+# 然后：cp .env.example .env  并填入 LLM_API_KEY
+
+langgraph>=1.0
+langchain-core>=1.0
+langchain-openai>=1.0
+
+# 评测：可解性自检 / 变异测试 / 配对统计
+pytest>=8.0
+numpy>=1.26
+scipy>=1.11
+
+# 可选：装了会自动用它解析 .env，没装也能跑（llm_env.py 有兜底解析）
+python-dotenv>=1.0
