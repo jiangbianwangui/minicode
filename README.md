@@ -29,7 +29,7 @@ python cli.py "在沙箱里创建 hello.py，定义 add(a,b) 返回 a+b，并运
 验证环境是否正常（不烧额度的离线部分）：
 
 ```bash
-python -m pytest tests -q          # 96 个单测
+python -m pytest tests -q          # 97 个单测
 python eval/selftest_tasks.py      # 39 个任务可解性自检（会真调 LLM）
 ```
 

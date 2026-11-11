@@ -135,3 +135,22 @@ def test_grep_inside_workdir_not_blocked():
 def test_dotted_filename_not_blocked():
     """`decider.py` / `.gitignore` 这种点号不能被当成 `..`。"""
     assert not blocked("cat export/decider.py .gitignore")
+
+
+# ---------------- 拒绝文案本身的行为影响（2026-11-11） ----------------
+
+def test_deny_message_forbids_retry_and_offers_alternative():
+    """拒绝文案必须同时给出「别再试」和「改做什么」。
+
+    由来：抓 t34 轨迹发现 agent 读完全部仓库文件后，第一件事是
+    `ls -la ..; find / -iname "*skill*"`。旧文案结尾写的是「用相对路径重试」，
+    模型把它读成「换个写法继续试」——另一次运行连续 19 次 Bash 全在探上级目录，
+    烧到 167k token 仍未交付。只拦不引导，等于给它一个可以无限重试的按钮。
+    """
+    from tools import _run_bash
+
+    msg = _run_bash("ls -la ..", pathlib.Path("."), 10)
+    assert "不可访问" in msg
+    assert "不要再用" in msg
+    # 必须给出替代动作，否则模型只剩「再试一次」这一个选项
+    assert "请只基于当前工作目录内的文件做判断" in msg
