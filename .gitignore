@@ -12,6 +12,8 @@ venv/
 # 评测产物：每次运行都会生成，几十 MB，且是可复现的中间结果
 eval/workspaces/
 eval/EVAL*.md
+# 工具调用轨迹（--trace）：排查用，含大量中间输出，不入库
+eval/traces/
 
 # IDE / OS
 .idea/

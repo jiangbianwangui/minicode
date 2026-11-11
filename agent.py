@@ -49,6 +49,24 @@ from context import Compressor, count_tokens, estimate_tokens
 from skill_router import default_router, summarize_hits
 
 
+def _trace_line(name: str, args: dict, obs: str, ok: bool, step: int) -> str:
+    """把一次工具调用压成一行 jsonl：名字 / 参数 / 结果摘要 / 成败。
+
+    只截断正文、不省略结构——排查时要看的是「它到底敲了什么命令」，
+    而不是模型说了什么。
+    """
+    return json.dumps(
+        {
+            "step": step,
+            "tool": name,
+            "args": {k: str(v)[:300] for k, v in (args or {}).items()},
+            "ok": bool(ok),
+            "obs": str(obs)[:300],
+        },
+        ensure_ascii=False,
+    ) + "\n"
+
+
 PLAN_INSTRUCTION = (
     "\n\n[Plan 模式已启用] 对复杂任务，第一步调用 plan 列出全部步骤（只需一次）；"
     "之后直接按步骤执行，无需每步重复调用 plan，仅在需要修改计划时再调用。"
@@ -219,12 +237,20 @@ class CodingAgent:
         stall_stop_after: int = 10,
         skills: bool = False,
         skill_k: int = 3,
+        trace_path: "str | Path | None" = None,
     ) -> None:
         self.workdir = Path(workdir).resolve()
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.max_iter = max_iter
         self.max_obs = max_obs
         self.verbose = verbose
+        # 轨迹落盘：每次工具调用写一行 jsonl（名字 / 参数 / 结果前 300 字 / 成败）。
+        # 只存工具名不够——t34 那次「19 次连续 Bash」只能看出它在打转，
+        # 看不出它在 `ls ..`，根因是「拒绝文案在邀请重试」这件事只能从命令文本读到。
+        self.trace_path = Path(trace_path) if trace_path else None
+        if self.trace_path is not None:
+            self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+            self.trace_path.write_text("", encoding="utf-8")
         # plan_mode: 硬编码始终开 plan；adaptive_plan: 仅对「复杂任务」开 plan（运行时判定）
         self.adaptive_plan = adaptive_plan
         self.plan_mode = plan_mode or adaptive_plan
@@ -292,6 +318,16 @@ class CodingAgent:
         g.add_edge("tools", "agent")
         self.graph = g.compile()
 
+    def _trace(self, name: str, args: dict, obs: str, ok: bool) -> None:
+        """轨迹落盘（未开启则零开销）。写失败绝不能影响主流程。"""
+        if self.trace_path is None:
+            return
+        try:
+            with self.trace_path.open("a", encoding="utf-8") as f:
+                f.write(_trace_line(name, args, obs, ok, len(self.stats.tool_calls)))
+        except OSError:
+            self.trace_path = None  # 落盘失败就关掉，别让诊断功能拖垮评测
+
     # ---- 节点 ----
     def _node_agent(self, state: _State) -> dict:
         """决策节点：把（压缩后的）系统提示 + 历史消息交给「绑定了工具的 LLM」。"""
@@ -334,6 +370,7 @@ class CodingAgent:
                         content="⚠️ 当前为纯 ReAct 模式（自适应判定任务较简单，未启用 Plan），请直接执行。",
                         tool_call_id=tc["id"],
                     ))
+                    self._trace(name, args, "plan 未启用", False)
                     self.stats.tool_calls.append((name, False))
                     calls.append((name, False, args))
                     continue
@@ -361,6 +398,7 @@ class CodingAgent:
                     obs = f"# 技能：{skill.name}\n\n{skill.body}"
                     self.stats.skill_loaded.append(skill.name)
                 ok = not obs.startswith("❌")
+                self._trace(name, args, obs, ok)
                 self.stats.tool_calls.append((name, ok))
                 calls.append((name, ok, args))
                 outputs.append(ToolMessage(content=obs, tool_call_id=tc["id"]))
@@ -371,6 +409,7 @@ class CodingAgent:
             except Exception as e:  # 任何意外都转成 observation，让 Agent 自行反应
                 obs = f"❌ 工具执行异常: {type(e).__name__}: {e}"
             ok = not obs.startswith("❌") and not obs.startswith("⛔")
+            self._trace(name, args, obs, ok)
             self.stats.tool_calls.append((name, ok))
             calls.append((name, ok, args))
             # 重读统计：只记成功的读操作，记路径即可（不记内容，避免撑大 stats）

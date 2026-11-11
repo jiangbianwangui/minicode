@@ -28,11 +28,12 @@ from tasks import TASKS                    # noqa: E402
 from metrics import build_metrics, assign_buckets, bucket_of, BUCKET_NAMES  # noqa: E402
 
 WORKSPACES = _HERE / "workspaces"
+TRACES = _HERE / "traces"
 
 
 def run_one(task: dict, max_iter: int, plan: bool = False, compress: bool = False,
             adaptive: bool = False, stall: bool = False, skills: bool = False,
-            ws_suffix: str = "") -> dict:
+            ws_suffix: str = "", trace: bool = False) -> dict:
     # 每个模式用独立 workspace（按 tag 区分），避免跨模式文件残留污染 verify，
     # 也避免重复运行时对大目录做 rmtree。
     wd = WORKSPACES / f"{task['id']}{ws_suffix}"
@@ -41,10 +42,13 @@ def run_one(task: dict, max_iter: int, plan: bool = False, compress: bool = Fals
     if task.get("setup"):
         task["setup"](wd)
 
+    # 轨迹写到 workspaces 之外：workdir 里多一个文件会污染 verify 的产物检查。
+    trace_path = (TRACES / f"{task['id']}{ws_suffix}.jsonl") if trace else None
+
     agent = CodingAgent(
         workdir=wd, verbose=False, max_iter=max_iter,
         plan_mode=plan, adaptive_plan=adaptive, compress=compress, stall=stall,
-        skills=skills,
+        skills=skills, trace_path=trace_path,
     )
     try:
         _text, stats = agent.run_with_stats(task["prompt"])
@@ -118,6 +122,8 @@ def main() -> None:
     ap.add_argument("--compress", action="store_true", help="启用分层上下文压缩")
     ap.add_argument("--tag", default="", help="报告文件名后缀，如 --tag .plan → EVAL.plan.md")
     ap.add_argument("--out", default=None, help="输出报告路径（默认 EVAL{tag}.md）")
+    ap.add_argument("--trace", action="store_true",
+                    help="把每次工具调用的（名字/参数/结果摘要）落到 eval/traces/*.jsonl")
     args = ap.parse_args()
 
     out_path = pathlib.Path(args.out) if args.out else (_HERE / f"EVAL{args.tag}.md")
@@ -142,7 +148,7 @@ def main() -> None:
     for t in tasks:
         print(f"  · {t['id']} {t['name']} ...", end=" ", flush=True)
         r = run_one(t, args.max_iter, plan=args.plan, compress=args.compress,
-                    adaptive=args.adaptive, ws_suffix=ws_suffix)
+                    adaptive=args.adaptive, ws_suffix=ws_suffix, trace=args.trace)
         rows.append(r)
         print(f"{'✅' if r['passed'] else '❌'} ({r['seconds']}s, {r['llm_calls']} calls)")
 
