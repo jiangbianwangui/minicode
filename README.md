@@ -1,5 +1,8 @@
 # CLI 编程 Agent（LangGraph 编排 · 类 Claude Code 迷你版）
 
+[![tests](https://github.com/jiangbianwangui/minicode/actions/workflows/test.yml/badge.svg)](https://github.com/jiangbianwangui/minicode/actions/workflows/test.yml)
+[![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+
 一个 coding agent：给它一句自然语言任务，它自己读文件、写代码、跑命令、看结果、
 不对就改，直到完成。和 Claude Code / Cursor / OpenHands 是**同一个思想**。
 
