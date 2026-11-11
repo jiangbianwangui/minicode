@@ -25,6 +25,8 @@ from langchain_core.messages import (
     SystemMessage,
 )
 
+from tools import TOOL_SCHEMAS
+
 
 def _add_usage(stats, msg: AIMessage) -> None:
     """从 AIMessage 抽取 token 用量（与 agent.py 同逻辑，避免循环依赖在此复制一份）。"""
@@ -127,9 +129,20 @@ _SUMMARY_PROMPT = SystemMessage(
 # 这类工具返回的是「模型后续要靠精确字节去行动」的内容（文件内容 / 代码 / 数据），
 # 一旦摘要就会丢失细节导致模型重读或试错——因此对 coding agent 而言它们「不可压缩」，
 # 必须永远保留原文。压缩只针对 Bash/搜索/调试等「可丢」轮次。
-PRESERVE_TOOLS = {
-    "ReadFile", "ViewFile", "EditFile", "WriteFile", "ReadLines", "GrepFile",
-}
+_PRESERVE_NAMES = {"ReadFile", "EditFile", "WriteFile"}
+
+# 名字必须真实存在于 TOOL_SCHEMAS，否则启动即失败——不允许静默失效。
+# 历史问题：这里曾手写 "ViewFile" / "ReadLines" / "GrepFile"，三个工具根本不存在，
+# 集合永远匹配不到，配置和实现悄悄脱了钩，而任何测试都发现不了。
+_KNOWN_TOOL_NAMES = {s["function"]["name"] for s in TOOL_SCHEMAS}
+_unknown_preserve = _PRESERVE_NAMES - _KNOWN_TOOL_NAMES
+if _unknown_preserve:
+    raise RuntimeError(
+        f"PRESERVE_TOOLS 含未注册的工具名：{sorted(_unknown_preserve)}；"
+        f"已注册：{sorted(_KNOWN_TOOL_NAMES)}"
+    )
+
+PRESERVE_TOOLS = _PRESERVE_NAMES
 
 
 def _round_tool_names(round_msgs: list[BaseMessage]) -> set[str]:
