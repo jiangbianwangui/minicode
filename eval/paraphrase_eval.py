@@ -23,7 +23,7 @@ sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "eval"))
 
 from skill_router import default_router  # noqa: E402
-from paraphrase_set import PARAPHRASES  # noqa: E402
+from paraphrase_set import PARAPHRASES, SHORT_NEGATIVES  # noqa: E402
 
 
 def evaluate(router, verbose: bool = False) -> dict:
@@ -49,7 +49,17 @@ def evaluate(router, verbose: bool = False) -> dict:
             print(f"  {verdict:16s} 期望={want:24s} 实际={names or '—'}")
             print(f"      Q: {q}")
     n = len(PARAPHRASES)
-    return {"n": n, "r1": r1, "rk": rk, "wrong": wrong, "empty": empty, "rows": rows}
+    # 短负例：一句都不该召回。只看长负例会被「阈值对短查询太严」这一假象骗到。
+    fp_short = []
+    for q in SHORT_NEGATIVES:
+        names = [h.skill.name for h in router.retrieve(q)]
+        if names:
+            fp_short.append((q, names))
+            if verbose:
+                print(f"  短负例误召        {names}")
+                print(f"      Q: {q}")
+    return {"n": n, "r1": r1, "rk": rk, "wrong": wrong, "empty": empty,
+            "rows": rows, "fp_short": fp_short}
 
 
 def main() -> None:
@@ -66,6 +76,8 @@ def main() -> None:
     print(f"recall@K  {m['rk']}/{n}  = {m['rk'] / n:.0%}   出现在返回列表里")
     print(f"漏召      {m['empty']}/{n}      一个都没召回")
     print(f"召错      {m['wrong']}/{n}      召回了不相干的 skill（比漏召更糟）")
+    print(f"短负例误召 {len(m['fp_short'])}/{len(SHORT_NEGATIVES)}    "
+          f"不该召回却召回（任何改阈值/打分的改动都必须先看这一行）")
 
 
 if __name__ == "__main__":
