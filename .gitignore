@@ -20,3 +20,6 @@ eval/traces/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# 本地向量模型（约 24MB，需自行下载，见 eval/RECALL.md）
+eval/models/

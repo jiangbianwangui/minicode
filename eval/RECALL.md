@@ -116,11 +116,78 @@ recall@1  0/22  = 0%
 
 只报最后一行 = 允许用误召换召回。
 
-## 7. 复现
+## 7. 语义通道：先试了"查询 ↔ 说明文档"，不行；换成"查询 ↔ 历史查询"，行了
+
+模型：**bge-small-zh-v1.5 int8（24MB，ONNX）**，`onnxruntime + tokenizers`，不装 torch
+（本机 `torch` 是空壳，`import torch` 连 `__version__` 都没有）。
+
+**方案 A：cos(查询, skill 元数据)** —— `eval/semantic_probe.py`
+
+| cos 阈值 | 原地 正例 | 原地 误召 | 改写 首位 |
+| ---: | ---: | ---: | ---: |
+| 0.55 | 12/12 | **31/32** | 7/22 |
+| 0.65 | 12/12 | 20/32 | 1/22 |
+
+中文短句的 cos 整体偏高，**32 条编码任务几乎全部 ≥0.55**。绝对阈值第三次失效——
+和 `min_abs` 那次是同一个错误的变体：**把标量绝对分当相关性**。
+
+另外，这个口径本身就错位：skill 的 `description/when_to_use` 是写给"读了才知道怎么做"的，
+不是写给"什么时候该召"的。
+
+**方案 B：exemplar kNN（查询 ↔ 该 skill 的历史任务描述）+ margin 判据** —— `eval/semantic_knn.py`
+
+`margin = top1 − top2`，只有"最近的那个明显比第二近更像"才算召回（相对分，不是绝对分）。
+
+| margin | 原地 正例 | 原地 误召 | 改写 首位 | 改写 召错 | 短负例 误召 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.00 | 12/12 | 0/32 | 9/22 | 8 | 3/9 |
+| **0.02** | **12/12** | **0/32** | **7/22** | **1** | **1/9** |
+| 0.05 | 12/12 | 0/32 | 2/22 | 0 | 0/9 |
+
+## 8. 两通道合并后的口径（明天要上线的行为）—— `eval/semantic_fusion.py`
+
+规则刻意做得很笨：**tag 通道有结果就用它；为空才走语义兜底（margin ≥ 0.02）**。
+不用"融合打分"，因为那要把两个不可比的分数放进同一尺度——今晚已经两次证明调标量阈值的路走不通。
+
+| 集合 | 指标 | 现状 | 合并后 |
+| --- | --- | ---: | ---: |
+| 原地 44 条 | 该召回 12 条 recall@1 | 12/12 | **12/12** |
+| 原地 44 条 | 不该召回的误召 | 0/32 | **0/32** |
+| 改写 22 条 | recall@1 | 0/22 | **7/22** |
+| 短负例 9 条 | 误召 | 0/9 | **1/9** |
+
+**没有达到自定的 ≥8/22，差一条**；代价是短负例多了 1 条误召（`运营要下载全量用户表…`
+被错判成 logging-standard）。按事先定好的验收表，这一版**可以上线但必须如实标注：7/22、1 误召**。
+
+9 条救回来的改写里 7 条正确，2 条错误（`前端上报的点击数据…` → report-export-encoding；
+`运营要下载全量用户表…` → logging-standard）。**别只报"救回 9 条"。**
+
+## 9. 还没做：把通道接进路由
+
+三个必须先解决的问题，一个都没草率处理：
+
+1. **exemplar 从哪来**：现在用的是原地 12 条任务 prompt —— 那是评测集，放进仓库当锚点有"自问自答"的嫌疑。
+   更干净的做法：用 LLM 从每篇 skill 生成 3 条"什么样的问题该查我"，写进 `skills/<name>/`。
+2. **运行时要装 onnxruntime + tokenizers，并下载 24MB 模型** → `requirements.txt` 与 CI 都要处理，
+   模型缺失时测试必须 skip 而不是红。
+3. **`retrieve()` 变慢**：每次空召回都要跑一次 embedding。1 条查询约几十毫秒，可接受，但要实测。
+
+## 10. 复现
+
+先下模型（24MB，`eval/models/` 已在 `.gitignore`）：
+
+```bash
+mkdir -p eval/models/bge-small-zh-v1.5 && cd eval/models/bge-small-zh-v1.5
+curl -L -o model_int8.onnx https://modelscope.cn/models/Xenova/bge-small-zh-v1.5/resolve/master/onnx/model_int8.onnx
+curl -L -o tokenizer.json   https://modelscope.cn/models/Xenova/bge-small-zh-v1.5/resolve/master/tokenizer.json
+```
 
 ```bash
 python eval/recall_audit.py         # 44 条逐条分类与诊断
 python eval/paraphrase_eval.py      # 改写集 22 条 + 9 条短负例
 python eval/threshold_sweep.py      # 绝对阈值 × 两个集合
 python eval/length_norm_sweep.py    # 长度归一化阈值（已否掉，留作反例）
+python eval/semantic_probe.py       # 语义通道方案 A（查询↔文档，已否掉）
+python eval/semantic_knn.py         # 语义通道方案 B（exemplar kNN + margin）
+python eval/semantic_fusion.py      # 两通道合并后的四行验收
 ```
