@@ -237,6 +237,7 @@ class CodingAgent:
         stall_stop_after: int = 10,
         skills: bool = False,
         skill_k: int = 3,
+        skills_semantic: bool = False,
         trace_path: "str | Path | None" = None,
     ) -> None:
         self.workdir = Path(workdir).resolve()
@@ -271,7 +272,10 @@ class CodingAgent:
         # 团队规范），所以它的价值不该用"通过率有没有涨"衡量，而该看
         # 「本来答不对的题，现在能答对了」——t27 就是这样的靶子。
         self.skill_k = skill_k
-        self.router = default_router() if skills else None
+        # skills_semantic：给路由挂上语义兜底通道（tag 空召回时才用）。
+        # 默认关——现有 39 个任务的 prompt 都很长、tag 命中率已 12/12，
+        # 这条通道在现有评测集里没有用武之地；它是为「用户随口说一句话」的查询形态准备的。
+        self.router = default_router(semantic=skills_semantic) if skills else None
         self._skill_hits: list = []
         if self.router is not None:
             self._tool_schemas.append(LOAD_SKILL_SCHEMA)

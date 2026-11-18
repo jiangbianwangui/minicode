@@ -25,6 +25,8 @@ def main() -> None:
     ap.add_argument("--compress", action="store_true", help="启用分层上下文压缩（默认关，只对长轨迹任务可能有收益）")
     ap.add_argument("--stall", action="store_true", help="启用停滞检测（反复探索无产出时警告/终止）")
     ap.add_argument("--skills", action="store_true", help="启用 Skill 分层路由（检索仓库外的知识）")
+    ap.add_argument("--skills-semantic", action="store_true",
+                    help="给 Skill 路由加语义兜底（tag 没命中时用向量找；需 onnxruntime + 本地模型）")
     ap.add_argument("--quiet", action="store_true", help="关闭过程打印")
     args = ap.parse_args()
 
@@ -37,7 +39,8 @@ def main() -> None:
         adaptive_plan=args.adaptive,
         compress=args.compress,
         stall=args.stall,
-        skills=args.skills,
+        skills=args.skills or args.skills_semantic,   # 语义兜底依赖 skills 通道
+        skills_semantic=args.skills_semantic,
     )
     result = agent.run(args.task)
     if not args.quiet:

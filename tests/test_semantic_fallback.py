@@ -84,6 +84,31 @@ def test_default_router_has_no_semantic_channel():
     assert default_router().semantic_fallback is None
 
 
+def test_agent_wiring_defaults_off(tmp_path):
+    """agent 侧默认不挂语义通道；显式开启时才挂，且模型缺失也只能降级不能抛错。"""
+    from langchain_core.messages import AIMessage
+
+    from agent import CodingAgent
+
+    class _M:
+        def bind_tools(self, schemas):
+            return self
+
+        def invoke(self, messages):
+            return AIMessage(content="done")
+
+    off = CodingAgent(workdir=tmp_path / "a", llm=_M(), verbose=False, skills=True)
+    assert off.router is not None
+    assert off.router.semantic_fallback is None
+
+    on = CodingAgent(workdir=tmp_path / "b", llm=_M(), verbose=False,
+                     skills=True, skills_semantic=True)
+    assert on.router is not None
+    fb = on.router.semantic_fallback
+    if fb is not None:                     # 模型在就挂上，不在就 None —— 都不许抛
+        assert fb.texts, "锚点不能为空"
+
+
 @pytest.mark.skipif(
     not (pathlib.Path(_ROOT) / "eval" / "models" / "bge-small-zh-v1.5" / "model_int8.onnx").exists(),
     reason="本地未下载 ONNX 模型（CI 不下载；见 eval/RECALL.md 的下载命令）",
