@@ -164,10 +164,14 @@ def load_skills(skill_dir: str | Path) -> list[Skill]:
 class SkillRouter:
     """两阶段检索：BM25 粗召回 → 规则精排。"""
 
-    def __init__(self, skills: list[Skill], k1: float = 1.5, b: float = 0.75) -> None:
+    def __init__(self, skills: list[Skill], k1: float = 1.5, b: float = 0.75,
+                 semantic_fallback=None) -> None:
         self.skills = skills
         self.k1 = k1
         self.b = b
+        # 语义兜底（opt-in）：tag 闸门空召回时再给一次机会。
+        # 默认 None —— 纯 tag 通道的行为与今天完全一致，CI 也不需要模型。
+        self.semantic_fallback = semantic_fallback
         self._df: Counter = Counter()
         for s in skills:
             for t in set(s._index):
@@ -310,6 +314,13 @@ class SkillRouter:
                 hits.append(SkillHit(skill=s, score=score, bm25=bm, bonus=bonus))
         hits.sort(key=lambda h: (-h.score, h.skill.name))
         if not hits:
+            # tag 闸门一条都没给 → 问一次语义通道（若启用）。
+            # 这是唯一新增的行为，且只在"本来什么都没有"时发生，不会挤掉 tag 的结果。
+            if self.semantic_fallback is not None:
+                name = self.semantic_fallback.retrieve(task)
+                skill = self.get(name) if name else None
+                if skill is not None:
+                    return [SkillHit(skill=skill, score=min_abs, bm25=0.0, bonus=0.0)]
             return []
         floor = hits[0].score * rel
         return [h for h in hits if h.score >= floor][:top_k]
@@ -342,7 +353,19 @@ def summarize_hits(hits: list[SkillHit]) -> str:
     return "\n".join(lines)
 
 
-def default_router() -> SkillRouter:
-    """从仓库根的 skills/ 目录加载（不在沙箱 workdir 内，agent 只能通过工具访问）。"""
+def default_router(semantic: bool = False) -> SkillRouter:
+    """从仓库根的 skills/ 目录加载（不在沙箱 workdir 内，agent 只能通过工具访问）。
+
+    semantic=True 时挂载语义兜底通道；模型或依赖缺失时自动降级为纯 tag 通道
+    （`SemanticFallback.available()` 为 False 只会影响 retrieve，不会抛错）。
+    """
     root = Path(__file__).resolve().parent / "skills"
-    return SkillRouter(load_skills(root))
+    router = SkillRouter(load_skills(root))
+    if semantic:
+        try:
+            from skill_semantic import SemanticFallback
+
+            router.semantic_fallback = SemanticFallback(root)
+        except Exception:      # 语义通道永远不该让路由挂掉
+            router.semantic_fallback = None
+    return router

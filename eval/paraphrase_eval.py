@@ -65,10 +65,18 @@ def evaluate(router, verbose: bool = False) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--semantic", action="store_true",
+                    help="挂载语义兜底通道（需要 onnxruntime + 本地模型）")
     args = ap.parse_args()
 
-    router = default_router()
-    print(f"改写集 {len(PARAPHRASES)} 条 · 技能库 {len(router.skills)} 篇\n")
+    router = default_router(semantic=args.semantic)
+    mode = "tag + 语义兜底" if args.semantic else "纯 tag"
+    print(f"改写集 {len(PARAPHRASES)} 条 · 技能库 {len(router.skills)} 篇 · 通道：{mode}")
+    if args.semantic and router.semantic_fallback is not None:
+        fb = router.semantic_fallback
+        print(f"  锚点 {len(fb.texts)} 条（其中 NONE "
+              f"{sum(1 for x in fb.labels if x == '__none__')} 条），margin={fb.margin}")
+    print()
     m = evaluate(router, verbose=args.verbose)
     n = m["n"]
     print("\n" + "=" * 58)

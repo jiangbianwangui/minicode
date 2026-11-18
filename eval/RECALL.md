@@ -185,14 +185,31 @@ recall@1  0/22  = 0%
    （第一次是 early 版把 skill 正文也索引进去）。
 3. **改写集是我写的**，构造效度风险仍在；要引用得用第三方写的新查询复验。
 
-## 10. 还没做：把通道接进路由
+## 10. 已接进路由（opt-in，2026-11-18）
 
-三个必须先解决的问题：
+`skill_router.SkillRouter(semantic_fallback=...)` + `skill_semantic.SemanticFallback`：
+**tag 有价值时一次都不碰语义通道**（连锚点嵌入都不做），只有 tag 空召回才走一次 kNN。
 
-1. **运行时要装 `onnxruntime + tokenizers`，并下载 24MB 模型** → `requirements.txt` 与 CI 都要处理，
-   模型缺失时测试必须 **skip 而不是红**（CI 上不下载模型）。
-2. **`retrieve()` 变慢**：tag 空召回时多跑一次 embedding。1 条查询几十毫秒可接受，但要实测并写进 README。
-3. **`NONE` 锚点要落到仓库里**（`skills/_none_anchors.txt` 之类），并说清它不是 skill。
+走真实路由复测（`python eval/paraphrase_eval.py --semantic`）：
+
+| 集合 | 指标 | 纯 tag | tag + 语义 |
+| --- | --- | ---: | ---: |
+| 原地 44 条 | 该召回 recall@1 | 12/12 | **12/12** |
+| 原地 44 条 | 不该召回的误召 | 0/32 | **0/32** |
+| 改写 22 条 | recall@1 | 0/22 | **12/22** |
+| 短负例 9 条 | 误召 | 0/9 | **0/9** |
+
+延迟（44 条查询，锚点已预热）：**均值 4.5ms / p95 8.8ms**。语义通道只在 tag 空召回时触发，
+所以最常见的路径没有额外成本。
+
+两个踩过的坑，都留了测试：
+
+1. **锚点文件里的注释行会被当成锚点**。`_none_anchors.txt` 开头那几行解释是长句，
+   几乎和任何查询都"有点像"——锚点从 56 变 65，改写召回 12→11，短负例误召 0→1。
+   现在 `_lines()` 跳过 `#` 开头。
+2. **默认必须关闭**。`default_router()` 不挂语义通道；CI 不下载模型，
+   `test_real_model_smoke` 用 `skipif` 跳过，其余 6 条用注入的假 embedder 覆盖 margin 判据、
+   NONE 拦截、"tag 命中时语义通道调用次数为 0"。
 
 ## 11. 复现
 

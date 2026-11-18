@@ -18,3 +18,9 @@ scipy>=1.11
 
 # 可选：装了会自动用它解析 .env，没装也能跑（llm_env.py 有兜底解析）
 python-dotenv>=1.0
+
+# 语义兜底通道（skill_router 的 opt-in，默认关闭）：
+#   只用 ONNX 推理，**不要装 torch**（本机 torch 是空壳，真 wheel 200MB+ 且无必要）
+#   模型 24MB 需单独下载，见 eval/RECALL.md；缺依赖或模型时通道自动降级，不影响纯 tag 行为
+onnxruntime>=1.17
+tokenizers>=0.15
