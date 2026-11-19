@@ -40,7 +40,7 @@ from . import (
     t37_backfill_planner,
     t38_export_approval,
     t39_alert_mute,
-    t32_export_encoding,
+    t40_access_elevation,
 )
 
 TASKS = [
@@ -83,4 +83,5 @@ TASKS = [
     t37_backfill_planner.TASK,
     t38_export_approval.TASK,
     t39_alert_mute.TASK,
+    t40_access_elevation.TASK,
 ]

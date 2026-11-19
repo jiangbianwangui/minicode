@@ -38,6 +38,11 @@ EXPECTED = {
     "t37": "backfill-approval-policy",
     "t38": "export-approval-policy",
     "t39": "backfill-approval-policy",
+    # t40 是第二道留出任务（临时提权审批），库里没有对应 skill，
+    # 它召回的是**结构同族**的 export-approval-policy（10.1 分，贴着 min_abs=10.0 的线）。
+    # 这正是 B 组能"迁移结构"的机会来源 —— 同时也说明这个机会很脆：
+    # 阈值再高 0.2 分，B 组就变成纯 A 组了。t39 的 10.4 分同理。
+    "t40": "export-approval-policy",
 }
 
 
@@ -77,7 +82,7 @@ def test_sampled_tasks_get_no_skill(router, prompts):
 
 
 def test_recall_is_not_too_wide(router, prompts):
-    """整体召回率不能失控：44 个 prompt 里只该有 12 个召回。
+    """整体召回率不能失控：45 个 prompt 里只该有 13 个召回。
 
     没有这条断言的话，"把所有 prompt 都召回" 和 "只召回对的" 都能通过上面两条。
     """
