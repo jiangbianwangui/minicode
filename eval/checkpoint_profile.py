@@ -63,6 +63,7 @@ def main() -> None:
     ap.add_argument("--tasks", required=True, help="逗号分隔，如 t27,t28")
     ap.add_argument("--repeats", type=int, default=1)
     ap.add_argument("--max-iter", type=int, default=20)
+    ap.add_argument("--tag", default="", help="追加到 workspace 后缀；目录里文件太多时删除会被沙箱拦，换个 tag 即可")
     args = ap.parse_args()
 
     tids = [t.strip() for t in args.tasks.split(",") if t.strip()]
@@ -74,7 +75,7 @@ def main() -> None:
         task = by_id[tid]
         nchk = len(_checks(tid))
         for r in range(1, args.repeats + 1):
-            suffix = f"_cp_{args.mode}{r}"
+            suffix = f"_cp_{args.mode}{r}{args.tag}"
             res = run_one(task, args.max_iter, skills=(args.mode == "skill"), ws_suffix=suffix)
             bit = _bitmap(tid, WORKSPACES / f"{tid}{suffix}")
             got = bit.count("1")
