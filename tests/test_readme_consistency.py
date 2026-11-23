@@ -37,3 +37,30 @@ def test_readme_test_count_matches_reality():
         f"README 写的是 {claimed} 个单测，实际收集到 {actual} 个。"
         f"改了测试就要同步 README —— 这个数字已经漂过三次了。"
     )
+
+
+def _registered_task_count() -> int:
+    p = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, 'eval'); from tasks import TASKS; print(len(TASKS))"],
+        cwd=str(_ROOT), capture_output=True, text=True, timeout=120,
+    )
+    assert p.returncode == 0, f"导入 eval/tasks 失败：\n{p.stderr[-800:]}"
+    return int(p.stdout.strip().splitlines()[-1])
+
+
+def test_readme_task_count_matches_reality():
+    """README 头部的任务总数必须等于 eval/tasks 真实注册数。
+
+    为什么需要这条：这个数字已经错配过两次——2026-11 初 README 写 21 而实际 39
+    （简历写 39，对外两张皮）；加 t40 之后头部写 40、正文两处还写 39。
+    都和单测数一样：不报错、只静默过期，而 README 是面试官第一眼看的东西。
+    """
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    m = re.search(r"\*\*(\d+)\s*个自动判卷任务\*\*", readme)
+    assert m, "README 里找不到 `**N 个自动判卷任务**` 这样的标记"
+    claimed = int(m.group(1))
+    actual = _registered_task_count()
+    assert claimed == actual, (
+        f"README 头部写 {claimed} 个自动判卷任务，eval/tasks 实际注册 {actual} 个。"
+    )

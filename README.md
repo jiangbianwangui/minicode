@@ -29,7 +29,7 @@ python cli.py "在沙箱里创建 hello.py，定义 add(a,b) 返回 a+b，并运
 验证环境是否正常（不烧额度的离线部分）：
 
 ```bash
-python -m pytest tests -q          # 112 个单测
+python -m pytest tests -q          # 113 个单测
 python eval/selftest_tasks.py      # 39 个任务可解性自检（会真调 LLM）
 ```
 
@@ -258,7 +258,7 @@ Skill 补的是另一维：**仓库外的知识**。对端 API 的限频配额�
 延迟 **4.5ms / p95 8.8ms**，且 tag 命中时**连锚点都不嵌入**（有测试锁住这一点）。
 
 默认关闭：`default_router()` 不挂语义通道，`default_router(semantic=True)` 才开。
-理由是**当前 39 个任务的 prompt 都很长、tag 命中率已是 12/12，这条通道在现有评测集里没有用武之地**——
+理由是**当前 40 个任务的 prompt 都很长、tag 命中率已是 12/12，这条通道在现有评测集里没有用武之地**——
 它是为「用户随口说一句话」这种查询形态准备的，不是为了让表格好看。
 
 完整实验过程（含被否方案的原始数字）在 [`eval/RECALL.md`](eval/RECALL.md)。
