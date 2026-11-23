@@ -97,6 +97,18 @@ def main() -> None:
           f"（平均 {tot_got / len(rows):.1f}/{tot_n // len(rows)}），"
           f"整体通过 {sum(r['passed'] for r in rows)}/{len(rows)}")
 
+    # 区分度预警：base 有任意一次整体通过，说明这个任务对 base 不设防
+    # —— 2026-11-19 就是这么发现 t31 已经废了的（规则是业界默认值，base 猜得出来）。
+    # 残留的检查点分数会掩盖这件事：t31 的 base 是 15/18，看着"只是差一点"，
+    # 实际上它已经能过关了。
+    if args.mode == "base":
+        weak = sorted({r["tid"] for r in rows if r["passed"]})
+        if weak:
+            print(f"⚠️ 区分度失效：{'、'.join(weak)} 的 base 至少通过一次 —— "
+                  f"应从主表剔除，或重造成反直觉的规则")
+        else:
+            print("✅ 本批任务对 base 全部不设防通过（区分度正常）")
+
 
 if __name__ == "__main__":
     main()
