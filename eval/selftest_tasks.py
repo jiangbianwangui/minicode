@@ -951,6 +951,38 @@ def approve(rule: dict, ctx: dict) -> str:
     )
 
 
+def solve_t40(wd):
+    """按权限治理组规定实现：五步判断链，只读短时直通排在最前。"""
+    (wd / "authz" / "elevator.py").write_text(
+        '''"""提权审批器（规定取自权限治理组的《临时提权管理办法》）。"""
+
+READ_SHORTCUT_HOURS = 4
+LONG_ELEVATION_HOURS = 12
+
+
+def decide(req: dict, ctx: dict) -> str:
+    # 第 0 步：只读 且 不超过 4 小时 → 直通（不再看后面任何条件，含生产环境检查）
+    if req["role"] == "read" and req["hours"] <= READ_SHORTCUT_HOURS:
+        return "grant"
+
+    # 第 1 步：admin → 一票否决（走别的流程，短时长/双签都不能放行）
+    if req["role"] == "admin":
+        return "deny"
+
+    # 第 2 步：超过 12 小时 → 先授前一段再评估（排在环境检查之前）
+    if req["hours"] > LONG_ELEVATION_HOURS:
+        return "grant_staged"
+
+    # 第 3 步：生产环境且缺第二审批人 → 转人工
+    if ctx["env"] == "prod" and not req["second_approver"]:
+        return "review"
+
+    return "grant"
+''',
+        encoding="utf-8",
+    )
+
+
 SOLUTIONS = {
     "t17": solve_t17,
     "t19": solve_t19,
@@ -973,6 +1005,7 @@ SOLUTIONS = {
     "t37": solve_t37,
     "t38": solve_t38,
     "t39": solve_t39,
+    "t40": solve_t40,
 }
 
 # ---------------- 自检主流程 ----------------

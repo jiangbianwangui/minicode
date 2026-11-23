@@ -29,8 +29,8 @@ python cli.py "在沙箱里创建 hello.py，定义 add(a,b) 返回 a+b，并运
 验证环境是否正常（不烧额度的离线部分）：
 
 ```bash
-python -m pytest tests -q          # 113 个单测
-python eval/selftest_tasks.py      # 39 个任务可解性自检（会真调 LLM）
+python -m pytest tests -q          # 114 个单测
+python eval/selftest_tasks.py      # 22 个任务可解性自检（有参考解的部分，会真调 LLM）
 ```
 
 排查某次运行为什么打转时，让评测把「每次工具调用的命令原文」也落盘：

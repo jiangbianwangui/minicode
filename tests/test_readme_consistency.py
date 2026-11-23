@@ -64,3 +64,33 @@ def test_readme_task_count_matches_reality():
     assert claimed == actual, (
         f"README 头部写 {claimed} 个自动判卷任务，eval/tasks 实际注册 {actual} 个。"
     )
+
+
+def _solver_count() -> int:
+    p = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, 'eval');"
+         " from selftest_tasks import SOLUTIONS; print(len(SOLUTIONS))"],
+        cwd=str(_ROOT), capture_output=True, text=True, timeout=120,
+    )
+    assert p.returncode == 0, f"导入 eval/selftest_tasks 失败：\n{p.stderr[-800:]}"
+    return int(p.stdout.strip().splitlines()[-1])
+
+
+def test_readme_selftest_count_matches_solvers():
+    """README 里「N 个任务可解性自检」必须等于 SOLUTIONS 的实际条数。
+
+    这条是 2026-11-23 补的：README 当时写「39 个任务可解性自检」，
+    而 SOLUTIONS 只有 22 条（t01–t16、t18、t32 没有参考解）。
+    之前误以为「SOLUTIONS 到 t39 就是 39 个」——把**最大编号**当成了**条数**。
+    这种错最难发现，因为 39 恰好也像个数，且和任务总数 40 只差一。
+    """
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    m = re.search(r"#\s*(\d+)\s*个任务可解性自检", readme)
+    assert m, "README 里找不到 `# N 个任务可解性自检` 这样的标记"
+    claimed = int(m.group(1))
+    actual = _solver_count()
+    assert claimed == actual, (
+        f"README 写 {claimed} 个任务可解性自检，SOLUTIONS 实际 {actual} 条。"
+        f"注：不能用最大任务编号当条数。"
+    )
