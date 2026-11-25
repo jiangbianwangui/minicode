@@ -23,7 +23,7 @@ import re
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 _EVAL = _ROOT / "eval"
 
-_TOTAL_TIMES = re.compile(r"base[^\d\n]{0,12}(\d+)\s*次里通过\s*1\s*次")
+_TOTAL_TIMES = re.compile(r"base\s*\*{0,2}(\d+)\s*次里通过\s*\*{0,2}(\d+)\s*次")
 
 
 def _load_recount():
@@ -60,8 +60,8 @@ def test_combined_sample_count_consistent_across_docs():
 
     stats_n = _TOTAL_TIMES.findall(stats_text)
     cp_n = _TOTAL_TIMES.findall(cp_text)
-    assert stats_n, "STATS.md 里没找到「base N 次里通过 1 次」"
-    assert cp_n, "CHECKPOINTS.md 里没找到「base N 次里通过 1 次」"
+    assert stats_n, "STATS.md 里没找到「base N 次里通过 M 次」"
+    assert cp_n, "CHECKPOINTS.md 里没找到「base N 次里通过 M 次」"
 
     assert set(stats_n) == set(cp_n), (
         f"两份文档对合并样本量的说法不一致：STATS.md {set(stats_n)}、"
@@ -77,7 +77,7 @@ def test_combined_count_equals_primary_plus_recheck():
     base_n = sum(r[2] for r in rows)
 
     m = _TOTAL_TIMES.search(text)
-    assert m, "STATS.md 里没找到「base N 次里通过 1 次」"
+    assert m, "STATS.md 里没找到「base N 次里通过 M 次」"
     combined = int(m.group(1))
 
     recheck = 9 * 3

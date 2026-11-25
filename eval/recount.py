@@ -20,7 +20,8 @@ import sys
 _HERE = pathlib.Path(__file__).resolve().parent
 
 _ROW = re.compile(
-    r"^\|\s*(t\d+)[^|]*\|\s*(\d+)\s*/\s*(\d+)\s*\|\s*(\d+)\s*/\s*(\d+)\s*\|",
+    r"^\|\s*(t\d+)[^|]*\|\s*\*{0,2}(\d+)\s*/\s*(\d+)\*{0,2}\s*"
+    r"\|\s*\*{0,2}(\d+)\s*/\s*(\d+)\*{0,2}\s*\|",
     re.M,
 )
 _TOTAL = re.compile(
