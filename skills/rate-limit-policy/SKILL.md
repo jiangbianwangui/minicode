@@ -55,3 +55,28 @@ tags: [限流, 配额, rate limit, 租户, tenant, 网关, 重试, 幂等]
 - 大促期间用户被大量限流 → 查内部调用有没有占配额
 - 网络抖动后限流雪崩 → 查重试有没有重复计费
 - 限流恢复瞬间服务被打挂 → 查是不是排队而没有直接拒绝
+
+## 附：配额的**自检**（改完 `limiter.py` 后跑一次）
+
+配额的数字最容易写错，而写错了**既有的本地测试全绿**——它们只验接口形状。
+所以别靠"我记得是 900"来确认，跑一遍：
+
+```python
+# tests/test_quota_selfcheck.py
+from ratelimit import Limiter
+
+
+def test_tenant_shared_quota():
+    lim = Limiter(lambda: 0.0)
+    allowed = sum(
+        lim.check("t1", user)[0]
+        for _ in range(400)
+        for user in ("u1", "u2", "u3")
+    )
+    assert allowed == 900, f"3 个用户共打 1200 次，实际放行 {allowed} 次，应为 900"
+```
+
+写着"每租户 900 次"，这段就应该是绿的。红了只有两种可能：
+配额数值不对，或者你按 `user_id` 分了桶 —— 这两件事都能从 `allowed` 这个数看出来
+（放行 900 = 对；3600 = 按用户算了；600 或别的值 = 配额数字写错）。
+
