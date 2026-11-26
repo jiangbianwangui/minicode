@@ -183,8 +183,10 @@ skill 通过率从 **96%（24/25）掉到 87%（26/30）** —— t36 那 3 次�
 
 ## 八、下一步能加强的地方
 
-1. **把 cp 批次的 27 次也纳入重判**（现在只重判了主表 46 + 30，
-   `eval/CHECKPOINTS.md` 的 38/126 仍来自当时的报告）。
+1. ~~把 cp 批次的 27 次也纳入重判~~ ✅ 2026-11-26 完成：`rebuild_runs.py --batch cp`
+   重判 54 个目录（4.7 分钟），**逐题与 `CHECKPOINTS.md` 完全对上**
+   （base 38/126、skill 125/126），由 `tests/test_checkpoints_audit.py` 守住。
+   现在主表和检查点两套数字都能从 `eval/runs/*.jsonl` 重算。
 2. **容器化沙箱**：现在靠正则拦 Bash，实测被绕过三次，详见 `eval/LEAK.md`。
 3. **每个新任务入库前跑一次 base×3**：任一通过就说明它没区分度（`checkpoint_profile.py` 已能看出）。
 

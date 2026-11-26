@@ -58,6 +58,7 @@ _CHECKS_MODULES = {
 }
 
 _DIR_RE = re.compile(r"^(t\d+)_(base|skill)_r\d+_")
+_DIR_RE_CP = re.compile(r"^(t\d+)_cp_(base[123]b|skill[123])$")
 
 
 def _checks(tid: str):
@@ -76,16 +77,32 @@ def _bitmap(tid: str, wd: pathlib.Path, timeout: int) -> tuple[str, int]:
     return "".join(bits), len(checks)
 
 
-def discover(tasks: list[str], groups: list[str]) -> list[tuple[str, str, pathlib.Path]]:
-    """返回 [(task, group, 目录)]，按任务、组、目录名排序。"""
+def discover(tasks: list[str], groups: list[str],
+             batch: str = "main") -> list[tuple[str, str, pathlib.Path]]:
+    """返回 [(task, group, 目录)]，按任务、组、目录名排序。
+
+    batch="main"：主对照的 `tXX_base_rN_<时间戳>` / `tXX_skill_rN_<时间戳>`
+    batch="cp"  ：检查点剖析的 `tXX_cp_base{N}b` / `tXX_cp_skill{N}`
+
+    cp 批次为什么精确到数字：
+    - base 只认 `base1b/base2b/base3b` —— `CHECKPOINTS.md` 里那条命令带了 `--tag b`；
+      无 b 的 `_cp_base1` 是更早一次试跑，不在统计内。
+    - skill 只认 `skill1/2/3` —— 排除 `skill1sc`（2026-11-25 的自检实验，条件已变）。
+    **规则先于数据**：先按当时的命令确定哪批算数，再跑，而不是看结果挑。
+    """
+    pat = _DIR_RE_CP if batch == "cp" else _DIR_RE
     out = []
     for d in sorted(WORKSPACES.iterdir()):
         if not d.is_dir():
             continue
-        m = _DIR_RE.match(d.name)
+        m = pat.match(d.name)
         if not m:
             continue
-        tid, group = m.group(1), m.group(2)
+        if batch == "cp":
+            tid, who = m.group(1), m.group(2)
+            group = "base" if who.startswith("base") else "skill"
+        else:
+            tid, group = m.group(1), m.group(2)
         if tid in tasks and group in groups:
             out.append((tid, group, d))
     return out
@@ -98,13 +115,15 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--out", default="")
     ap.add_argument("--limit", type=int, default=0, help="只跑前 N 个，用于试跑")
+    ap.add_argument("--batch", choices=["main", "cp"], default="main",
+                    help="main=主对照 76 个目录；cp=检查点剖析 54 个目录")
     args = ap.parse_args()
 
     tasks = [t.strip() for t in args.tasks.split(",") if t.strip()]
     groups = [g.strip() for g in args.groups.split(",") if g.strip()]
     by_id = {t["id"]: t for t in TASKS}
 
-    targets = discover(tasks, groups)
+    targets = discover(tasks, groups, batch=args.batch)
     if args.limit:
         targets = targets[: args.limit]
     if not targets:
@@ -161,9 +180,14 @@ def main() -> int:
             a, b = per_task[tid]
             print(f"    {tid}  {a}/{b}")
 
-    out = pathlib.Path(args.out) if args.out else (
-        RUNS_DIR / ("main_9task.jsonl" if not args.limit else "smoke.jsonl")
-    )
+    if args.out:
+        out = pathlib.Path(args.out)
+    elif args.limit:
+        out = RUNS_DIR / "smoke.jsonl"
+    elif args.batch == "cp":
+        out = RUNS_DIR / "checkpoints_9task.jsonl"
+    else:
+        out = RUNS_DIR / "main_9task.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8", newline="\n") as fh:
         for r in rows:
